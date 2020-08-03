@@ -1,6 +1,7 @@
 const express = require('express');
 const app = express();
 const { admin } = require('./fbConfig');
+const verify = require('./application/verifyToken');
 
 app.get('/secretPage', verify, async (req, res) => {
 
