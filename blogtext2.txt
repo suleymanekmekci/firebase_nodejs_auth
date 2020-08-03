@@ -1,0 +1,132 @@
+Türkçe açıklama aşağıdadır!
+
+Once we have done the [setup](http://suleymanekmekci-blog.herokuapp.com/articles/nodejs-firebase-authentication-using-firebase-auth-with-a-custom-nodejs-server-and-nodejs-firebase-oturum-yonetimi-firebase-ile-nodejs-sunucusu-kullanarak-oturum-yonetimi-), we can verify ID token which comes from the client-side of the project.  We will write a function for verifying and use the verifying function as middleware function so that our code will look clean and open to change easily.  
+
+We can receive the user's firebase uid by verifying the token. After receiving this, we can access the informations of the user. Our program will only return the user's email and displayName by using admin.auth function which comes from firebase. 
+
+##Verify function
+We will create a file named as **verifyToken.js** inside the application folder ( if not exists, create ). This will be exported and used by endpoints in order to verify the user / verify id token.The file should look like this. **Client should send the token from headers when it sends request!**
+```javascript
+const { admin } = require('../fbConfig');
+
+module.exports = async function (req, res, next) {
+    let idToken = req.headers.authorization
+    if (!idToken) return res.status(401).send('Access Denied');
+    // check token, if doesn't exist, return access denied.
+    try {
+        idToken = idToken.replace("Bearer ", "")
+
+        admin.auth().verifyIdToken(idToken)
+            .then(function (decodedToken) {
+                // if token matches, returns uid of the owner of token
+                let uid = decodedToken.uid;
+                req.uid = uid
+                next();
+
+            }).catch(function (error) {
+                res.status(400).send('An error occured' + error.message)
+            });
+    } catch (err) {
+        console.log(err.message)
+        res.status(400).send('Invalid Token ' + err)
+    }
+}
+```
+
+Our program will decode the token and set the req.uid as the current uid. Since this function will be used as middleware, we should add **next()** to the file so that when the middleware is executed and finished, it can be returned to the current function after the function is done.
+
+We will add a custom endpoint to our API to test the function. By adding that, **index.js** should look like this:
+```javascript
+
+const express = require('express');
+const app = express();
+const { admin } = require('./fbConfig');
+const verify = require('./application/verifyToken');
+
+app.get('/secretPage', verify, async (req, res) => {
+
+    const uid = await req.uid;
+    admin.auth().getUser(uid)
+        .then(function (userRecord) {
+
+            res.status(200).send("email: " + userRecord.email + "\nname: " + userRecord.displayName)
+        })
+        .catch(function (error) {
+            console.log('Error fetching user data:', error);
+        });
+
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log('Listening 5000'));
+```
+We are accessing the verify function by requiring it like this : ```const verify = require('./application/verifyToken');```. We can set our route as **secretPage**. In this case, the complete URL will be **http://localhost:5000/secretPage** . Once a request is sent to this endpoint, it will call **verify** function and decode the token which is sent from client-side. With done that, we will be available to access the uid. We can get user information by using the **admin.auth().getUser()** function. It takes uid as an argument. If the token is valid, the program sends email and displayName as a response. 
+
+That's all with verifying tokens. You can access the source code by clicking [here](https://github.com/suleymanekmekci/firebase_nodejs_auth)
+
+[Kurulum](http://suleymanekmekci-blog.herokuapp.com/articles/nodejs-firebase-authentication-using-firebase-auth-with-a-custom-nodejs-server-and-nodejs-firebase-oturum-yonetimi-firebase-ile-nodejs-sunucusu-kullanarak-oturum-yonetimi-) tamamlandıktan sonra, istemci (client) tarafından gelen ID tokeni doğrulayabiliriz. Doğrulama için fonksiyon yazacağız ve bu fonksiyonu middleware ( ara katman ) fonksiyon olarak kullanacağız böylece kodumuz daha temiz gözükecek ve endpoint'lere eklenmesi rahat olacak.
+
+Kullanıcının uid'sini, tokeni doğrulayarak elde edebiliriz. Tokeni aldıktan sonra kullanıcının bilgilerine direkt olarak erişebiliyoruz. Programımız ise firebaseden gelen admin.auth fonksiyonunu kullanarak sadece kullanıcının emailini ve displayName özelliğini döndürecek.
+
+## Verify (doğrulama) fonksiyonu
+Application dosyasının içerisinde (yoksa kurmanız gerekecek) **verifyToken.js** isimli bir dosya kuracağız. Bu dosya endpoint tarafından, kullanıcıyı / id tokeni doğrulamak için kullanılacak. Dosya şu şekilde gözükmelidir: **İstemci endpointe istek atarken tokeni headers kısmında yollamalıdır**
+
+```javascript
+const { admin } = require('../fbConfig');
+
+module.exports = async function (req, res, next) {
+    let idToken = req.headers.authorization
+    if (!idToken) return res.status(401).send('Access Denied');
+    // check token, if doesn't exist, return access denied.
+    try {
+        idToken = idToken.replace("Bearer ", "")
+
+        admin.auth().verifyIdToken(idToken)
+            .then(function (decodedToken) {
+                // if token matches, returns uid of the owner of token
+                let uid = decodedToken.uid;
+                req.uid = uid
+                next();
+
+            }).catch(function (error) {
+                res.status(400).send('An error occured' + error.message)
+            });
+    } catch (err) {
+        console.log(err.message)
+        res.status(400).send('Invalid Token ' + err)
+    }
+}
+```
+
+Programımız token'i çözecek (decode) ve req.uid ' i şimdiki uid 'e eşitleyecek. Fonksiyon arakatman (middleware) olarak kullanılacağından dolayı **next()** i dosyamıza eklememiz gerekecek böylece arakatman bittiğinde normal fonksiyona geri dönebilsin.
+
+Fonksiyonu test etmek için programımıza özel endpoint ekleyeceğiz. Bunu ekledikten sonra **index.js** şu şekilde gözükmelidir:
+```javascript
+
+const express = require('express');
+const app = express();
+const { admin } = require('./fbConfig');
+const verify = require('./application/verifyToken');
+
+app.get('/secretPage', verify, async (req, res) => {
+
+    const uid = await req.uid;
+    admin.auth().getUser(uid)
+        .then(function (userRecord) {
+
+            res.status(200).send("email: " + userRecord.email + "\nname: " + userRecord.displayName)
+        })
+        .catch(function (error) {
+            console.log('Error fetching user data:', error);
+        });
+
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log('Listening 5000'));
+```
+
+Doğrulama (verify function) fonksiyonuna şu şekilde erişiyoruz: ```const verify = require('./application/verifyToken');```. Endpointimizin route'unu **secretPage** diye belirleyebiliriz. Bu durumda, URL şu şekilde olacaktır **http://localhost:5000/secretPage** . Buraya istek atıldığı zaman, **verify** fonksiyonu çağırılacak ve istemci tarafından gelen tokeni çözecek. Bunu da yaptıktan sonra, uid ' e erişim sağlayabileceğiz. Kullanıcının bilgilerine **admin.auth().getUser()** fonksiyonunu kullanarak erişebiliriz. Bu fonksiyon arguman olarak içine uid almaktadır. Eğer tokenimiz geçerli ise, program cevap olarak kullanıcının emailini ve displayName özelliklerini döndürecektir
+
+Token doğrulama ile ilgili her şey bu kadar. Uygulamanın kaynak koduna [buraya](https://github.com/suleymanekmekci/firebase_nodejs_auth) tıklayarak erişebilirsiniz.
+
